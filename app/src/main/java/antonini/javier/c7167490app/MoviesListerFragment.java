@@ -2,12 +2,17 @@ package antonini.javier.c7167490app;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -40,6 +45,7 @@ public class MoviesListerFragment extends Fragment {
     private final String API_KEY = "21d19ee5393617c36f10cb8f2c175376";
     private String LOG_TAG = "MainFragment";
     movieAdapter adapter;
+    private final String sort_preference = "sort";
 
     private OnMovieSelectedListener mCallback;
 
@@ -71,19 +77,62 @@ public class MoviesListerFragment extends Fragment {
 
             }
         });
-        new getMovies().execute();
+
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
+        String sort_by = prefs.getString(sort_preference, "popular");
+        if (sort_by.equals("favorites")){
+            Toast.makeText(getContext(), "Not yet implemented", Toast.LENGTH_SHORT).show();
+        }
+        else{
+            new getMovies().execute();
+        }
         return rootView;
     }
 
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
+        setHasOptionsMenu(true);
         if (context instanceof OnMovieSelectedListener) {
             mCallback = (OnMovieSelectedListener) context;
         } else {
             throw new RuntimeException(context.toString()
                     + " must implement OnMovieSelectedListener");
         }
+    }
+
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        super.onCreateOptionsMenu(menu, inflater);
+        inflater.inflate(R.menu.movie_list_menu, menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+
+        if(id == R.id.sort_popular){
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString(sort_preference, "popular");
+            editor.commit();
+            new getMovies().execute();
+        }
+        else if (id == R.id.sort_rating){
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString(sort_preference, "top_rated");
+            editor.commit();
+            new getMovies().execute();
+        }
+        else if (id == R.id.sort_favorites){
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString(sort_preference, "favorites");
+            editor.commit();
+        }
+
+        return super.onOptionsItemSelected(item);
     }
 
     private class getMovies extends AsyncTask<Void, Void, JSONObject> {
@@ -94,8 +143,6 @@ public class MoviesListerFragment extends Fragment {
         private String popular_endpoint = "popular";
         private String top_endpoint = "top_rated";
         private String key_parameter = "api_key";
-        private boolean popular = true;
-        private boolean top = false;
         public getMovies(){
         }
 
@@ -113,9 +160,12 @@ public class MoviesListerFragment extends Fragment {
                         .authority(base_url)
                         .appendPath(api_version)
                         .appendPath(movies_endpoint);
-                if(popular)
+
+                SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
+                String sort_by = prefs.getString(sort_preference, "popular");
+                if(sort_by.equals("popular"))
                     builder.appendPath(popular_endpoint);
-                if(top)
+                if(sort_by.equals("top_rated"))
                     builder.appendPath(top_endpoint);
                 builder.appendQueryParameter(key_parameter, API_KEY);
                 URL url = new URL(URLDecoder.decode(builder.build().toString(), "UTF-8"));
@@ -254,4 +304,5 @@ public class MoviesListerFragment extends Fragment {
             return v;
         }
     }
+
 }

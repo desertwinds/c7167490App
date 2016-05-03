@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context="antonini.javier.c7167490app.MoviesListerFragment">
+
+    <item
+        android:id="@+id/sort_popular"
+        android:orderInCategory="1"
+        android:title="@string/list_popular"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/sort_rating"
+        android:orderInCategory="2"
+        android:title="@string/list_rated"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/sort_favorites"
+        android:orderInCategory="3"
+        android:title="@string/list_favorites"
+        app:showAsAction="never" />
+
+</menu>

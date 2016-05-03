@@ -4,4 +4,8 @@
 
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
+
+    <string name="list_popular">Sort by popularity</string>
+    <string name="list_favorites">Show favorites</string>
+    <string name="list_rated">Sort by rating</string>
 </resources>
