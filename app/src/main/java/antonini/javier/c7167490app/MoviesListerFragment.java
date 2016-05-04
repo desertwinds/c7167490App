@@ -3,6 +3,7 @@ package antonini.javier.c7167490app;
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.preference.PreferenceManager;
@@ -36,6 +37,8 @@ import java.net.URL;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Iterator;
+
+import antonini.javier.c7167490app.data.MovieContract;
 
 /**
  * A placeholder fragment containing a simple view.
@@ -81,7 +84,7 @@ public class MoviesListerFragment extends Fragment {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
         String sort_by = prefs.getString(sort_preference, "popular");
         if (sort_by.equals("favorites")){
-            Toast.makeText(getContext(), "Not yet implemented", Toast.LENGTH_SHORT).show();
+            retrieveFavorites();
         }
         else{
             new getMovies().execute();
@@ -130,9 +133,40 @@ public class MoviesListerFragment extends Fragment {
             SharedPreferences.Editor editor = prefs.edit();
             editor.putString(sort_preference, "favorites");
             editor.commit();
+            retrieveFavorites();
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private void retrieveFavorites(){
+        Cursor movieCursor = getContext().getContentResolver().query(
+                MovieContract.MovieEntry.CONTENT_URI,
+                null,
+                null,
+                null,
+                null);
+        int idIndex;
+        int posterIndex;
+        int id;
+        String poster;
+        ArrayList<Movie> movies = new ArrayList<Movie>(0);
+        Movie movie;
+        try{
+            while(movieCursor.moveToNext()){
+                idIndex = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_MOVIE_ID);
+                posterIndex = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_POSTER_URL);
+                id = movieCursor.getInt(idIndex);
+                poster = movieCursor.getString(posterIndex);
+                movie = new Movie(id, poster);
+                movies.add(movie);
+            }
+            adapter.clear();
+            adapter.addAll(movies);
+        }
+        finally {
+            movieCursor.close();
+        }
     }
 
     private class getMovies extends AsyncTask<Void, Void, JSONObject> {

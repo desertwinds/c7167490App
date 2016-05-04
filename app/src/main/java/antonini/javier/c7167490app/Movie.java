@@ -39,6 +39,11 @@ public class Movie {
         this.trailers = new ArrayList<String>(0);
     }
 
+    public Movie(int id, String poster){
+        this.id = id;
+        this.poster_url = poster;
+    }
+
     public String getPoster_url(){
         return this.poster_url;
     }

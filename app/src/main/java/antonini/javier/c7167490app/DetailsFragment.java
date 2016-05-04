@@ -1,7 +1,10 @@
 package antonini.javier.c7167490app;
 
+import android.content.ContentUris;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -12,6 +15,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -37,6 +41,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Locale;
+
+import antonini.javier.c7167490app.data.MovieContract;
 
 
 /**
@@ -140,6 +146,23 @@ public class DetailsFragment extends Fragment {
             }
         });
 
+        Button favorite = (Button) getActivity().findViewById(R.id.mark_as_favorite);
+        favorite.setOnClickListener(new favoriteListener(movie));
+
+
+    }
+
+    public class favoriteListener implements View.OnClickListener{
+        Movie movie;
+
+        public favoriteListener(Movie movie){
+            this.movie = movie;
+        }
+
+        @Override
+        public void onClick(View v) {
+            addMovie(movie);
+        }
 
     }
 
@@ -313,5 +336,46 @@ public class DetailsFragment extends Fragment {
             }
             return v;
         }
+    }
+
+    long addMovie(Movie movie){
+        long movie_id;
+        Cursor movieCursor = getContext().getContentResolver().query(
+                MovieContract.MovieEntry.CONTENT_URI,
+                null,
+                MovieContract.MovieEntry.COLUMN_MOVIE_ID + " = ?",
+                new String[] {Integer.toString(movie.getId())},
+                null);
+        if (movieCursor.moveToFirst()){
+            int movieIdIndex = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_MOVIE_ID);
+            movie_id = movieCursor.getInt(movieIdIndex);
+        }
+        else {
+            ContentValues movieValues= new ContentValues();
+            DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+            String date = df.format(movie.getRelease_date());
+
+            movieValues.put(MovieContract.MovieEntry.COLUMN_IMDB_ID, movie.getImdb_id());
+            movieValues.put(MovieContract.MovieEntry.COLUMN_DURATION, movie.getDuration());
+            movieValues.put(MovieContract.MovieEntry.COLUMN_TITLE, movie.getTitle());
+            movieValues.put(MovieContract.MovieEntry.COLUMN_POSTER_URL, movie.getPoster_url());
+            movieValues.put(MovieContract.MovieEntry.COLUMN_OVERVIEW, movie.getOverview());
+            movieValues.put(MovieContract.MovieEntry.COLUMN_HOMEPAGE, movie.getHomepage());
+            movieValues.put(MovieContract.MovieEntry.COLUMN_DURATION, movie.getDuration());
+            movieValues.put(MovieContract.MovieEntry.COLUMN_VOTE_AVERAGE, movie.getVote_average());
+            movieValues.put(MovieContract.MovieEntry.COLUMN_DATE, date);
+
+            Uri insertedUri = getContext().getContentResolver().insert(
+                    MovieContract.MovieEntry.CONTENT_URI,
+                    movieValues
+            );
+
+            movie_id = ContentUris.parseId(insertedUri);
+        }
+
+        movieCursor.close();
+
+        return movie_id;
+
     }
 }
