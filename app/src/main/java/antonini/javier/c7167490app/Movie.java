@@ -39,6 +39,20 @@ public class Movie {
         this.trailers = new ArrayList<String>(0);
     }
 
+    public Movie(int id, String poster, String title, double vote_average, int duration,
+                 Date release, String overview, String imdb_id, String homepage, ArrayList<String> trailers){
+        this.id = id;
+        this.poster_url = poster;
+        this.title = title;
+        this.vote_average = vote_average;
+        this.duration = duration;
+        this.release_date = release;
+        this.overview = overview;
+        this.imdb_id = imdb_id;
+        this.homepage = homepage;
+        this.trailers = trailers;
+    }
+
     public Movie(int id, String poster){
         this.id = id;
         this.poster_url = poster;

@@ -11,13 +11,16 @@ import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.ListAdapter;
 import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -41,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.Vector;
 
 import antonini.javier.c7167490app.data.MovieContract;
 
@@ -60,6 +64,7 @@ public class DetailsFragment extends Fragment {
     private String t_endpoint = "t";
     private String p_endpoint = "p";
     private String format = "w185";
+    private trailerAdapter my_trailers;
 
     private int id;
 
@@ -73,7 +78,6 @@ public class DetailsFragment extends Fragment {
      * @param param1 Parameter 1.
      * @return A new instance of fragment DetailsFragment.
      */
-    // TODO: Rename and change types and number of parameters
     public static DetailsFragment newInstance(int param1) {
         DetailsFragment fragment = new DetailsFragment();
         Bundle args = new Bundle();
@@ -112,7 +116,21 @@ public class DetailsFragment extends Fragment {
     public void updateDetailsView(int id){
         //TextView titleText = (TextView) getActivity().findViewById(R.id.hello);
         //titleText.setText("The title selected was " + id);
-        new getMovieDetails().execute();
+        Movie favorite = findMovie();
+        if (favorite != null){
+            ImageView favorite_view = (ImageView) getActivity().findViewById(R.id.mark_as_favorite);
+            favorite_view.setVisibility(View.GONE);
+            ImageView unmark_favorite = (ImageView) getActivity().findViewById(R.id.unmark_as_favorite);
+            unmark_favorite.setVisibility(View.VISIBLE);
+            updateDetailsWithMovie(favorite);
+        }
+        else{
+            new getMovieDetails().execute();
+            ImageView favorite_view = (ImageView) getActivity().findViewById(R.id.mark_as_favorite);
+            favorite_view.setVisibility(View.VISIBLE);
+            ImageView unmark_favorite = (ImageView) getActivity().findViewById(R.id.unmark_as_favorite);
+            unmark_favorite.setVisibility(View.GONE);
+        }
     }
 
     public void updateDetailsWithMovie(Movie movie){
@@ -134,23 +152,67 @@ public class DetailsFragment extends Fragment {
 
         ArrayList<String> trailers = movie.getTrailers();
         ListView trailers_list = (ListView) getActivity().findViewById(R.id.trailers_list);
-        final trailerAdapter adapter = new trailerAdapter(getContext(), R.layout.trailers_listview, trailers);
+        my_trailers = new trailerAdapter(getContext(), R.layout.trailers_listview, trailers);
 
-        trailers_list.setAdapter(adapter);
+        trailers_list.setAdapter(my_trailers);
 
         trailers_list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                String url = adapter.getItem(position);
+                String url = my_trailers.getItem(position);
                 startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("http://www.youtube.com/watch?v=" + url)));
             }
         });
 
-        Button favorite = (Button) getActivity().findViewById(R.id.mark_as_favorite);
-        favorite.setOnClickListener(new favoriteListener(movie));
+        //Set the listeners for the mark or unmark as favorite icons.
+        ImageView favorite_view = (ImageView) getActivity().findViewById(R.id.mark_as_favorite);
+        favorite_view.setOnClickListener(new favoriteListener(movie));
+        ImageView unmark_favorite = (ImageView) getActivity().findViewById(R.id.unmark_as_favorite);
+        unmark_favorite.setOnClickListener(new unfavoriteListener(movie));
 
+        //Set the launcher and visibility for the imdb icon.
+        ImageView imdb_view = (ImageView) getActivity().findViewById(R.id.imdb_image);
+        if(movie.getImdb_id().length() > 0){
+            imdb_view.setVisibility(View.VISIBLE);
+            imdb_view.setOnClickListener(new imdbListener(movie));
+        }
+
+        //Set the launcher and visibility for the homepage icon.
+        ImageView homepage_view = (ImageView) getActivity().findViewById(R.id.homepage_icon);
+        if(movie.getHomepage().length() > 0){
+            homepage_view.setVisibility(View.VISIBLE);
+            homepage_view.setOnClickListener(new homepageListener(movie));
+        }
+
+        trailers_list.setFocusable(false);
+        setListViewHeightBasedOnChildren(trailers_list);
 
     }
+
+    public class imdbListener implements View.OnClickListener{
+        Movie movie;
+
+        public imdbListener(Movie movie){ this.movie = movie; }
+
+        @Override
+        public void onClick(View v) {
+            String url = movie.getImdb_id();
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("http://www.imdb.com/title/" + url)));
+        }
+    }
+
+    public class homepageListener implements View.OnClickListener{
+        Movie movie;
+
+        public homepageListener(Movie movie){ this.movie = movie; }
+
+        @Override
+        public void onClick(View v) {
+            String url = movie.getHomepage();
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        }
+    }
+
 
     public class favoriteListener implements View.OnClickListener{
         Movie movie;
@@ -162,6 +224,24 @@ public class DetailsFragment extends Fragment {
         @Override
         public void onClick(View v) {
             addMovie(movie);
+            v.setVisibility(View.GONE);
+            getActivity().findViewById(R.id.unmark_as_favorite).setVisibility(View.VISIBLE);
+        }
+
+    }
+
+    public class unfavoriteListener implements View.OnClickListener{
+        Movie movie;
+
+        public unfavoriteListener(Movie movie){
+            this.movie = movie;
+        }
+
+        @Override
+        public void onClick(View v) {
+            removeMovie(movie);
+            v.setVisibility(View.GONE);
+            getActivity().findViewById(R.id.mark_as_favorite).setVisibility(View.VISIBLE);
         }
 
     }
@@ -338,13 +418,96 @@ public class DetailsFragment extends Fragment {
         }
     }
 
+    Movie findMovie(){
+        Movie result = null;
+        Cursor movieCursor = getContext().getContentResolver().query(
+                MovieContract.MovieEntry.buildMovieUri(id),
+                null,
+                null,
+                null,
+                null
+        );
+        try{
+            if (movieCursor.moveToFirst()){
+                int poster_index = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_POSTER_URL);
+                int title_index = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_TITLE);
+                int vote_index = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_VOTE_AVERAGE);
+                int duration_index = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_DURATION);
+                int release_index = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_DATE);
+                int overview_index = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_OVERVIEW);
+                int imdb_index = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_IMDB_ID);
+                int homepage_index = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_HOMEPAGE);
+                String poster_url = movieCursor.getString(poster_index);
+                String title = movieCursor.getString(title_index);
+                double vote_average = movieCursor.getDouble(vote_index);
+                int duration = movieCursor.getInt(duration_index);
+                DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+                String date = movieCursor.getString(release_index);
+                Date release_date = new Date();
+                try {
+                    release_date = df.parse(date);
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
+                String overview = movieCursor.getString(overview_index);
+                String imdb_id = movieCursor.getString(imdb_index);
+                String homepage = movieCursor.getString(homepage_index);
+                ArrayList<String> trailers = getTrailers();
+                result = new Movie(id, poster_url, title, vote_average, duration, release_date, overview,
+                        imdb_id, homepage, trailers);
+            }
+        }
+        finally {
+            movieCursor.close();
+        }
+
+        return result;
+    }
+
+    ArrayList<String> getTrailers(){
+        ArrayList<String> result = new ArrayList<String>(0);
+        Cursor trailerCursor = getContext().getContentResolver().query(
+                MovieContract.TrailerEntry.buildTrailersFromMovieUri(id),
+                null,
+                null,
+                null,
+                null
+        );
+        try{
+            int url_index;
+            String url;
+            while (trailerCursor.moveToNext()){
+                url_index = trailerCursor.getColumnIndex(MovieContract.TrailerEntry.COLUMN_TRAILER_URL);
+                url = trailerCursor.getString(url_index);
+                result.add(url);
+            }
+        }
+        finally {
+            trailerCursor.close();
+        }
+        return result;
+    }
+
+    int removeMovie(Movie movie){
+        int movie_count = 0;
+
+        movie_count = getContext().getContentResolver().delete(
+                MovieContract.MovieEntry.buildMovieUri(movie.getId()),
+                MovieContract.MovieEntry.TABLE_NAME + "." +
+                        MovieContract.MovieEntry.COLUMN_MOVIE_ID + " = ? ",
+                new String[]{Integer.toString(id)}
+        );
+        return movie_count;
+    }
+
+
     long addMovie(Movie movie){
         long movie_id;
         Cursor movieCursor = getContext().getContentResolver().query(
                 MovieContract.MovieEntry.CONTENT_URI,
                 null,
                 MovieContract.MovieEntry.COLUMN_MOVIE_ID + " = ?",
-                new String[] {Integer.toString(movie.getId())},
+                new String[]{Integer.toString(movie.getId())},
                 null);
         if (movieCursor.moveToFirst()){
             int movieIdIndex = movieCursor.getColumnIndex(MovieContract.MovieEntry.COLUMN_MOVIE_ID);
@@ -355,6 +518,7 @@ public class DetailsFragment extends Fragment {
             DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
             String date = df.format(movie.getRelease_date());
 
+            movieValues.put(MovieContract.MovieEntry.COLUMN_MOVIE_ID, movie.getId());
             movieValues.put(MovieContract.MovieEntry.COLUMN_IMDB_ID, movie.getImdb_id());
             movieValues.put(MovieContract.MovieEntry.COLUMN_DURATION, movie.getDuration());
             movieValues.put(MovieContract.MovieEntry.COLUMN_TITLE, movie.getTitle());
@@ -371,11 +535,56 @@ public class DetailsFragment extends Fragment {
             );
 
             movie_id = ContentUris.parseId(insertedUri);
+            if(movie_id >0)
+                addTrailers(movie);
         }
 
         movieCursor.close();
 
         return movie_id;
-
     }
+
+    int addTrailers(Movie movie){
+        int trailersCount = 0;
+        ArrayList<String> trailers_url = movie.getTrailers();
+        ContentValues[] trailers = new ContentValues[trailers_url.size()];
+
+        for(int i = 0; i < trailers_url.size(); i++){
+            ContentValues trailer_values = new ContentValues();
+
+            trailer_values.put(MovieContract.TrailerEntry.COLUMN_MOVIE_ID, id);
+            trailer_values.put(MovieContract.TrailerEntry.COLUMN_TRAILER_URL,trailers_url.get(i));
+
+            trailers[i] = (trailer_values);
+        }
+
+        trailersCount = getContext().getContentResolver().bulkInsert(MovieContract.TrailerEntry.CONTENT_URI, trailers);
+        Log.e(LOG_TAG, "Trailers added " + trailersCount);
+        return trailersCount;
+    }
+
+    /**** Method for Setting the Height of the ListView dynamically.
+     **** Hack to fix the issue of not showing all the items of the ListView
+     **** when placed inside a ScrollView  ****/
+    public void setListViewHeightBasedOnChildren(ListView listView) {
+        if (my_trailers == null)
+            return;
+
+        int desiredWidth = View.MeasureSpec.makeMeasureSpec(listView.getWidth(), View.MeasureSpec.UNSPECIFIED);
+        int totalHeight = 0;
+        View view = null;
+        for (int i = 0; i < my_trailers.getCount(); i++) {
+            view = my_trailers.getView(i, view, listView);
+            if (i == 0)
+                view.setLayoutParams(new ViewGroup.LayoutParams(desiredWidth, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+            view.measure(desiredWidth, View.MeasureSpec.UNSPECIFIED);
+            totalHeight += view.getMeasuredHeight();
+        }
+        ViewGroup.LayoutParams params = listView.getLayoutParams();
+        params.height = totalHeight + (listView.getDividerHeight() * (my_trailers.getCount() - 1));
+        listView.setLayoutParams(params);
+    }
+
+
 }

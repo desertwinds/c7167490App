@@ -105,6 +105,33 @@ public class MovieProvider extends ContentProvider {
     }
 
     @Override
+    public int bulkInsert(Uri uri, ContentValues[] values) {
+        final SQLiteDatabase db = mOpenHelper.getWritableDatabase();
+        final int match = mURIMatcher.match(uri);
+        switch (match) {
+            case TRAILERS:
+                db.beginTransaction();
+                int returnCount = 0;
+                try {
+                    for (ContentValues value : values) {
+                        normalizeDate(value);
+                        long _id = db.insert(MovieContract.TrailerEntry.TABLE_NAME, null, value);
+                        if (_id != -1) {
+                            returnCount++;
+                        }
+                    }
+                    db.setTransactionSuccessful();
+                } finally {
+                    db.endTransaction();
+                }
+                getContext().getContentResolver().notifyChange(uri, null);
+                return returnCount;
+            default:
+                return super.bulkInsert(uri, values);
+        }
+    }
+
+    @Override
     public boolean onCreate() {
         mOpenHelper = new MovieDBHelper(getContext());
         return true;
@@ -167,7 +194,7 @@ public class MovieProvider extends ContentProvider {
         String[] selectionArgs = new String[]{Integer.toString(id)};
 
         return mOpenHelper.getReadableDatabase().query(
-                MovieContract.MovieEntry.TABLE_NAME,
+                MovieContract.TrailerEntry.TABLE_NAME,
                 projection,
                 selection,
                 selectionArgs,
