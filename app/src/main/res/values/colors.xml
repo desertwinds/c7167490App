@@ -8,4 +8,16 @@
     <color name="titleBackground">#009688</color>
     <color name="titleBackgroundGradient">#007A6F</color>
     <color name="textGray">#747474</color>
+
+    <color name="red">#F00</color>
+    <color name="green">#0F0</color>
+    <color name="blue">#00F</color>
+    <color name="yellow">#FF0</color>
+
+    <integer-array name="gplus_colors">
+        <item>@color/red</item>
+        <item>@color/green</item>
+        <item>@color/blue</item>
+        <item>@color/yellow</item>
+    </integer-array>
 </resources>

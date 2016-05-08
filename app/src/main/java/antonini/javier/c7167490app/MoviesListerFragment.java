@@ -6,6 +6,7 @@ import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
@@ -16,12 +17,16 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import com.paginate.Paginate;
+import com.paginate.abslistview.LoadingListItemCreator;
 import com.squareup.picasso.Picasso;
 
 import org.json.JSONArray;
@@ -39,16 +44,19 @@ import java.util.ArrayList;
 import java.util.Iterator;
 
 import antonini.javier.c7167490app.data.MovieContract;
-
 /**
  * A placeholder fragment containing a simple view.
  */
-public class MoviesListerFragment extends Fragment {
+public class MoviesListerFragment extends Fragment implements
+        Paginate.Callbacks{
 
     private final String API_KEY = "21d19ee5393617c36f10cb8f2c175376";
     private String LOG_TAG = "MainFragment";
     movieAdapter adapter;
+    private int page;
+    private boolean loading = false;
     private final String sort_preference = "sort";
+    private Paginate paginate;
 
     private OnMovieSelectedListener mCallback;
 
@@ -64,8 +72,13 @@ public class MoviesListerFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
+        if (paginate != null) {
+            paginate.unbind();
+        }
         View rootView = inflater.inflate(R.layout.movies_list_fragment, container, false);
         ArrayList<Movie> movies = new ArrayList<Movie>(0);
+        page = 1;
+        loading = false;
         adapter = new movieAdapter(
                 getActivity(),
                 R.layout.posters_gridview,
@@ -87,7 +100,11 @@ public class MoviesListerFragment extends Fragment {
             retrieveFavorites();
         }
         else{
-            new getMovies().execute();
+            paginate = Paginate.with(moviesView, this)
+                    .setLoadingTriggerThreshold(2)
+                    .addLoadingListItem(true)
+                    .setLoadingListItemCreator(new CustomLoadingListItemCreator())
+                    .build();
         }
         return rootView;
     }
@@ -113,26 +130,45 @@ public class MoviesListerFragment extends Fragment {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
+        //In case the first time the app is opened is in Favorites mode, and then it is
+        //switched to a different list, the paginate must be set before that.
+        if(paginate != null)
+            paginate.unbind();
 
         if(id == R.id.sort_popular){
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
             SharedPreferences.Editor editor = prefs.edit();
             editor.putString(sort_preference, "popular");
             editor.commit();
-            new getMovies().execute();
+            adapter.clear();
+            page = 1;
+            GridView moviesView = (GridView) getActivity().findViewById(R.id.postersGridView);
+            paginate = Paginate.with(moviesView, this)
+                    .setLoadingTriggerThreshold(2)
+                    .addLoadingListItem(true)
+                    .setLoadingListItemCreator(new CustomLoadingListItemCreator())
+                    .build();
         }
         else if (id == R.id.sort_rating){
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
             SharedPreferences.Editor editor = prefs.edit();
             editor.putString(sort_preference, "top_rated");
             editor.commit();
-            new getMovies().execute();
+            adapter.clear();
+            page = 1;
+            GridView moviesView = (GridView) getActivity().findViewById(R.id.postersGridView);
+            paginate = Paginate.with(moviesView, this)
+                    .setLoadingTriggerThreshold(2)
+                    .addLoadingListItem(true)
+                    .setLoadingListItemCreator(new CustomLoadingListItemCreator())
+                    .build();
         }
         else if (id == R.id.sort_favorites){
             SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
             SharedPreferences.Editor editor = prefs.edit();
             editor.putString(sort_preference, "favorites");
             editor.commit();
+            adapter.clear();
             retrieveFavorites();
         }
 
@@ -161,7 +197,6 @@ public class MoviesListerFragment extends Fragment {
                 movie = new Movie(id, poster);
                 movies.add(movie);
             }
-            adapter.clear();
             adapter.addAll(movies);
         }
         finally {
@@ -177,6 +212,7 @@ public class MoviesListerFragment extends Fragment {
         private String popular_endpoint = "popular";
         private String top_endpoint = "top_rated";
         private String key_parameter = "api_key";
+        private String page_parameter = "page";
         public getMovies(){
         }
 
@@ -201,7 +237,8 @@ public class MoviesListerFragment extends Fragment {
                     builder.appendPath(popular_endpoint);
                 if(sort_by.equals("top_rated"))
                     builder.appendPath(top_endpoint);
-                builder.appendQueryParameter(key_parameter, API_KEY);
+                builder.appendQueryParameter(key_parameter, API_KEY)
+                        .appendQueryParameter(page_parameter, Integer.toString(page));
                 URL url = new URL(URLDecoder.decode(builder.build().toString(), "UTF-8"));
                 urlConnection = (HttpURLConnection) url.openConnection();
                 urlConnection.setRequestMethod("GET");
@@ -258,7 +295,6 @@ public class MoviesListerFragment extends Fragment {
         protected void onPostExecute(JSONObject moviesData){
             JSONArray results;
             JSONObject data;
-            String page;
             int id;
             String title;
             String poster_url;
@@ -266,7 +302,6 @@ public class MoviesListerFragment extends Fragment {
             Movie movie;
             try {
                 if (moviesData != null){
-                    page = moviesData.getString("page");
                     results = moviesData.getJSONArray("results");
                     for(int i = 0; i < results.length(); i++){
                         data = results.getJSONObject(i);
@@ -276,8 +311,9 @@ public class MoviesListerFragment extends Fragment {
                         movie = new Movie(id, poster_url, title);
                         moviesList.add(movie);
                     }
-                    adapter.clear();
                     adapter.addAll(moviesList);
+                    page++;
+                    loading = false;
                 }
 
             } catch (JSONException e) {
@@ -336,6 +372,48 @@ public class MoviesListerFragment extends Fragment {
             }
 
             return v;
+        }
+    }
+
+    @Override
+    public void onLoadMore() {
+        Log.d("Paginate", "onLoadMore");
+        loading = true;
+        new getMovies().execute();
+    }
+
+    @Override
+    public boolean isLoading() {
+        return loading; // Return boolean weather data is already loading or not
+    }
+
+    @Override
+    public boolean hasLoadedAllItems() {
+        return page >= 1000; // If all pages are loaded return true
+    }
+
+
+    private class CustomLoadingListItemCreator implements LoadingListItemCreator {
+        @Override
+        public View newView(int position, ViewGroup parent) {
+            LayoutInflater inflater = LayoutInflater.from(parent.getContext());
+            View view = inflater.inflate(R.layout.loading_item, parent, false);
+            view.setTag(new VH(view));
+            return view;
+        }
+
+        @Override
+        public void bindView(int position, View view) {
+            VH vh = (VH) view.getTag();
+            vh.tvLoading.setText(String.format("Total items loaded: %d.\nLoading more...", adapter.getCount()));
+        }
+    }
+
+    static class VH {
+        TextView tvLoading;
+
+        public VH(View itemView) {
+            tvLoading = (TextView) itemView.findViewById(R.id.tv_loading_text);
         }
     }
 
