@@ -43,6 +43,9 @@
                 android:layout_height="match_parent"
                 android:src="@mipmap/ic_launcher"
                 android:id="@+id/movie_poster"
+                android:paddingLeft="20dp"
+                android:paddingRight="20dp"
+                android:scaleType="fitCenter"
                 android:layout_weight="1"/>
 
 
